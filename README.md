@@ -1,4 +1,10 @@
-# The Bellwether Mouse
+# Depraz mouse replica
+
+Based on the work by John Floren this project is aiming at creating a modern replica of the Depraz mouse. A mouse that outputs quadrature signals exactly as the original.
+
+The physical 3D model will be the same as the Bellwether mouse by John but the circuit board is replaced. The new circuitboard is going to use an STM32F103 micro controller. Since this processor is using 3.3V IO no level shifters are necessary. 
+
+# Old Bellwether project
 
 This repo should contain everything you need to make a [Bellwether mouse](https://jfloren.net/bellwether.html).
 
