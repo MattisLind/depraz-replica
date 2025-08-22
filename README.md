@@ -2,7 +2,7 @@
 
 Based on the work by John Floren this project is aiming at creating a modern replica of the Depraz mouse. A mouse that outputs quadrature signals exactly as the original.
 
-The physical 3D model will be the same as the Bellwether mouse by John but the circuit board is replaced. The new circuitboard is going to use an STM32F103 micro controller. Since this processor is using 3.3V IO no level shifters are necessary. 
+The physical 3D model will be the same as the Bellwether mouse by John but the circuit board is replaced. The new circuitboard is going to use an STM32F103 micro controller. Since this processor is using 3.3V IO no level shifters are necessary. On the board there will be a 3.3V LDO regulator and a 2.0V regulator, STM32F103 with 8MHz crystal and the PMW3389 mouse chip. The outputs from the STM32F103 to the host are using open drain to be able to handle 5V outputs. 
 
 # Old Bellwether project
 
