@@ -6047,6 +6047,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C1779"
+			(at 266.7 102.87 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "67076cc9-c8e2-4265-acc6-388a8b8f76a5")
 		)
@@ -6107,6 +6116,15 @@
 		)
 		(property "Description" ""
 			(at 214.63 107.95 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C25282"
+			(at 214.63 107.95 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6392,6 +6410,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C2861750"
+			(at 181.61 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "6"
 			(uuid "c6b89990-0062-4b3c-b8f9-ce010efd0fb3")
 		)
@@ -6543,6 +6570,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C1554"
+			(at 80.01 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "6d25c3ce-392b-4621-889c-94d83bb287bf")
 		)
@@ -6670,6 +6706,15 @@
 			)
 		)
 		(property "Description" "Resistor, small symbol"
+			(at 43.18 21.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4109"
 			(at 43.18 21.59 0)
 			(effects
 				(font
@@ -6807,6 +6852,15 @@
 			)
 		)
 		(property "Description" "STMicroelectronics Arm Cortex-M3 MCU, 64KB flash, 20KB RAM, 72 MHz, 2.0-3.6V, 37 GPIO, LQFP48"
+			(at 123.19 67.31 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C8734"
 			(at 123.19 67.31 0)
 			(effects
 				(font
@@ -7022,6 +7076,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C4109"
+			(at 50.8 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "2471899f-e3db-4e4d-9207-681197191a6a")
 		)
@@ -7083,6 +7146,15 @@
 			)
 		)
 		(property "Description" "Resistor, small symbol"
+			(at 54.61 21.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4109"
 			(at 54.61 21.59 0)
 			(effects
 				(font
@@ -7161,6 +7233,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C28323"
+			(at 191.77 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "62c4b613-540f-47e7-99b8-1c4f50ebd010")
 		)
@@ -7223,6 +7304,15 @@
 			)
 		)
 		(property "Description" "Resistor, small symbol"
+			(at 91.44 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4109"
 			(at 91.44 27.94 0)
 			(effects
 				(font
@@ -7762,6 +7852,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C4109"
+			(at 64.77 26.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "660fb440-09ad-43af-a516-3907e3fb12f6")
 		)
@@ -7823,6 +7922,15 @@
 			)
 		)
 		(property "Description" "Resistor, small symbol"
+			(at 97.79 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4109"
 			(at 97.79 58.42 0)
 			(effects
 				(font
@@ -8097,6 +8205,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C28323"
+			(at 67.31 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "abeabc3a-a293-49c9-8566-227f964cdcbd")
 		)
@@ -8235,6 +8352,15 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 222.25 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C28323"
 			(at 222.25 35.56 0)
 			(effects
 				(font
@@ -8639,6 +8765,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C1554"
+			(at 69.85 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "71cd2b2d-9750-43da-bdcb-de866601ab1c")
 		)
@@ -8767,6 +8902,15 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 91.44 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C28323"
 			(at 91.44 38.1 0)
 			(effects
 				(font
@@ -9001,6 +9145,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C4109"
+			(at 59.69 24.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "3e767083-b1ee-4dc7-b600-db6c9cda69a3")
 		)
@@ -9063,6 +9216,15 @@
 			)
 		)
 		(property "Description" "Polarized capacitor, small symbol"
+			(at 53.34 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C335975"
 			(at 53.34 60.96 0)
 			(effects
 				(font
@@ -9198,6 +9360,15 @@
 			)
 		)
 		(property "Description" "Resistor, small symbol"
+			(at 46.99 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4109"
 			(at 46.99 33.02 0)
 			(effects
 				(font
@@ -9502,7 +9673,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "Crystal"
+		(property "Value" "8MHz"
 			(at 83.82 46.9899 90)
 			(effects
 				(font
@@ -9531,6 +9702,15 @@
 		)
 		(property "Description" "Two pin crystal"
 			(at 80.01 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C20617538"
+			(at 80.01 45.72 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9673,6 +9853,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C4109"
+			(at 69.85 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "36b83b24-b3ad-4728-8bb9-9eaed1bf2a54")
 		)
@@ -9734,6 +9923,15 @@
 			)
 		)
 		(property "Description" "500mA Low Dropout Voltage Regulator, Fixed Output 1.9V, WSON6"
+			(at 210.82 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C2861631"
 			(at 210.82 33.02 0)
 			(effects
 				(font
