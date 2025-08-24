@@ -58,7 +58,16 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        "lib_footprint_mismatch|122000000|62000000|d49d20a1-1815-4994-baec-7c163282d3a0|00000000-0000-0000-0000-000000000000",
+        "lib_footprint_mismatch|122000000|98000000|e8d9ef7c-f20a-4c84-9678-5698ff587847|00000000-0000-0000-0000-000000000000",
+        "lib_footprint_mismatch|149432500|80910000|00000000-0000-0000-0000-000061cd1ffc|00000000-0000-0000-0000-000000000000",
+        "lib_footprint_mismatch|178000000|62000000|0d3a7bca-286b-4d56-82ea-7e37325b8ed0|00000000-0000-0000-0000-000000000000",
+        "lib_footprint_mismatch|178000000|98000000|8340d9c0-084e-4d81-8b92-621b3b650c7f|00000000-0000-0000-0000-000000000000",
+        "silk_edge_clearance|154350000|72820000|4bffd667-06c0-40dd-b902-c258aacfec11|1f685adb-1db0-43dc-9cab-6e5dfee2ae17",
+        "silk_edge_clearance|154350000|89020000|4bffd667-06c0-40dd-b902-c258aacfec11|c1ced5b3-23aa-4e37-9084-a27bdba27a08",
+        "starved_thermal|141203800|79679800|72fc5c34-4511-4ea6-b4f6-b98655a13364|b890be7e-0e74-4645-ad7c-236c2803fbb4|F.Cu"
+      ],
       "meta": {
         "filename": "board_design_settings.json",
         "version": 2
@@ -470,6 +479,23 @@
         "via_diameter": 0.6858,
         "via_drill": 0.3302,
         "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.1524,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "Power",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.3,
+        "via_diameter": 0.9,
+        "via_drill": 0.45,
+        "wire_width": 6
       }
     ],
     "meta": {
@@ -479,148 +505,20 @@
     "netclass_assignments": null,
     "netclass_patterns": [
       {
-        "netclass": "Default",
-        "pattern": "2V"
-      },
-      {
-        "netclass": "Default",
+        "netclass": "Power",
         "pattern": "GND"
       },
       {
-        "netclass": "Default",
-        "pattern": "Net-(C2-Pad1)"
+        "netclass": "Power",
+        "pattern": "+3.3V"
       },
       {
-        "netclass": "Default",
-        "pattern": "Net-(J1-Pad2)"
+        "netclass": "Power",
+        "pattern": "+5V"
       },
       {
-        "netclass": "Default",
-        "pattern": "Net-(J1-Pad4)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(J1-Pad6)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(J2-Pad4)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(J2-Pad5)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(R4-Pad2)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U1-Pad11)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U1-Pad5)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U1-Pad6)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U1-Pad7)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U1-Pad8)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U2-Pad2)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U2-Pad3)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U2-Pad4)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U2-Pad5)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U2-Pad6)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U2-Pad9)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad10)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad11)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad2)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad3)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad4)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad5)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad6)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U3-Pad9)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U5-Pad1)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U5-Pad14)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U5-Pad16)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U5-Pad2)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "Net-(U5-Pad6)"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "USB_5V"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "USB_D+"
-      },
-      {
-        "netclass": "Default",
-        "pattern": "USB_D-"
+        "netclass": "Power",
+        "pattern": "+1.9V"
       }
     ]
   },
