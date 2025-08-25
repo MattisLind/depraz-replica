@@ -66,7 +66,7 @@
         "lib_footprint_mismatch|178000000|98000000|8340d9c0-084e-4d81-8b92-621b3b650c7f|00000000-0000-0000-0000-000000000000",
         "silk_edge_clearance|154350000|72820000|4bffd667-06c0-40dd-b902-c258aacfec11|1f685adb-1db0-43dc-9cab-6e5dfee2ae17",
         "silk_edge_clearance|154350000|89020000|4bffd667-06c0-40dd-b902-c258aacfec11|c1ced5b3-23aa-4e37-9084-a27bdba27a08",
-        "starved_thermal|141203800|79679800|72fc5c34-4511-4ea6-b4f6-b98655a13364|b890be7e-0e74-4645-ad7c-236c2803fbb4|F.Cu"
+        "starved_thermal|141203800|79679800|341b9ee8-e4a5-46fa-b65c-8385253d3399|b890be7e-0e74-4645-ad7c-236c2803fbb4|F.Cu"
       ],
       "meta": {
         "filename": "board_design_settings.json",
@@ -137,7 +137,7 @@
         "min_microvia_drill": 0.1,
         "min_resolved_spokes": 2,
         "min_silk_clearance": 0.0,
-        "min_text_height": 0.8,
+        "min_text_height": 0.7,
         "min_text_thickness": 0.08,
         "min_through_hole_diameter": 0.254,
         "min_track_width": 0.1524,
