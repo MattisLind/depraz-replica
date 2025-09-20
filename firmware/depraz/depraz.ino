@@ -24,9 +24,9 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-extern "C" {
-  #include <libmaple/afio.h>   // For afio_cfg_debug_ports to disable JTAG but keep SWD
-}
+//extern "C" {
+//  #include <libmaple/afio.h>   // For afio_cfg_debug_ports to disable JTAG but keep SWD
+//}
 
 // ---------------- Compile-time configuration ----------------
 
@@ -148,7 +148,7 @@ int16_t readDelta16(uint8_t loAddr, uint8_t hiAddr) {
 }
 
 // ---------------- Motion hint ISR ----------------
-void IRAM_ATTR onMotionRise() {
+void onMotionRise() {
   motion_flag = true;              // simple flag; sampling loop will handle it
 }
 
