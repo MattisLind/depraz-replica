@@ -2,359 +2,332 @@
 
   First attempt as created by ChatGPT. Interesting to see how this works. If it even compile...
 
-  PMW3389 ΔX/ΔY -> Quadrature, with *simple init* per user's reference
-  Board/core: STM32 Maple (e.g., STM32F103)
-  - SPI1: PB3=SCK, PB4=MISO, PB5=MOSI
-  - NCS:  PA15  (JTAG disabled, SWD kept)
-  - MOTION: PA0 (input)
-  - NRESET: PA1 (output)
-  - Quad out: PB6=X1(A), PB7=X2(B), PB8=Y1(A), PB9=Y2(B)
-  - Debug UART1: PA9/PA10 (enabled via DEBUG_SERIAL)
-  - LED: PC13
+  PMW3389 → Quadrature bridge (init aligned with depraz demo main.c)
 
-  Simple init sequence implemented here:
-   1) Read Product_ID (0x00), Motion (0x02), Delta_X/Y (0x03..0x06)
-   2) Set Resolution_L/H (CPI/50 encoding)
-   3) Write Motion (0x02) to clear/ack
-   4) Enter polling loop for ΔX/ΔY
+  Init flow (like your demo):
+    1) Read ProductID
+    2) Read Motion + DeltaX/DeltaY (clear state)
+    3) Write resolution (CPI) to CONFIG1
+    4) Write Motion register (value configurable below)
+    5) Enter loop reading deltas
 
-  ⚠️ Comment requirement: code is heavily commented to explain each step.
+  Hardware (STM32, Arduino_Core_STM32):
+    - SPI1: PB3=SCK, PB4=MISO, PB5=MOSI; NCS=PA15
+    - MOTION=PA0 (input), NRESET=PA1 (output)
+    - Quadrature out: X1=PB6, X2=PB7, Y1=PB8, Y2=PB9
+    - LED: PC13 (active-low on many boards)
+    - Debug UART: USART1 on PA9/PA10 (define DEBUG_SERIAL 1 to enable)
+    - JTAG disabled, SWD kept enabled
+
+  NOTE: Many PMW33xx designs require SROM upload after reset for valid motion.
+        Your demo’s simple init works on your board/firmware; we follow that here.
 */
 
-#include <Arduino.h>
 #include <SPI.h>
 
-//extern "C" {
-//  #include <libmaple/afio.h>   // For afio_cfg_debug_ports to disable JTAG but keep SWD
-//}
+// ------------------------- Compile-time configuration ------------------
 
-// ---------------- Compile-time configuration ----------------
-
-// Turn serial debug prints on/off at compile time.
+// Enable/disable serial debug (USART1 PA9/PA10)
 #define DEBUG_SERIAL 1
 
-// Target readout rate from the sensor (Hz)
-#define SAMPLE_HZ 100
+// Desired resolution in CPI; PMW3389 uses 50-CPI steps via CONFIG1
+#define DESIRED_CPI 1600
 
-// Quadrature output service rate (Hz); higher = smoother pulses
-#define STEP_HZ   20000
+// Value to write to MOTION register in init step (match your demo).
+// If your original code used another value, change here.
+#define MOTION_WRITE_VAL 0x00
 
-// Set desired CPI (DPI) here; PMW3389 expects Resolution = CPI/50 in L/H regs.
-#define PMW_CPI   1600   // change as you like; valid 100..16000
+// Quadrature pulse width per half-step (µs)
+#define QUAD_PULSE_US 20
 
-// SPI timing/mode (per common PMW3389 guidance)
-#define PMW_SPI_HZ   2000000
-#define PMW_SPI_MODE SPI_MODE3
+// Sample rate 100 Hz = 10 ms
+#define SAMPLE_PERIOD_MS 10
 
-// PC13 LED polarity (many STM32 boards are active-low on PC13)
+// LED is often active-low on PC13 (e.g., Blue Pill)
 #define LED_ACTIVE_LOW 1
 
-// Safety: limit steps drained per tick per axis so both axes make progress
-#define MAX_STEPS_PER_TICK_PER_AXIS 1
+// ------------------------- Pin assignments -----------------------------
 
-// ---------------- Pin assignments ----------------
+const uint8_t PIN_NCS    = PA15; // PMW3389 NCS
+const uint8_t PIN_MOTION = PA0;  // PMW3389 MOTION (interrupt)
+const uint8_t PIN_NRESET = PA1;  // PMW3389 NRESET (output)
 
-// SPI1 pins fixed by core; manual CS pin below
-static const uint8_t PIN_CS     = PA15;   // NCS
-static const uint8_t PIN_MOTION = PA0;    // MOTION (input from PMW3389)
-static const uint8_t PIN_NRESET = PA1;    // NRESET (output to PMW3389)
+const uint8_t PIN_X1 = PB6; // Quadrature X A
+const uint8_t PIN_X2 = PB7; // Quadrature X B
+const uint8_t PIN_Y1 = PB8; // Quadrature Y A
+const uint8_t PIN_Y2 = PB9; // Quadrature Y B
 
-// Quadrature outputs
-static const uint8_t PIN_X1 = PB6;  // X channel A
-static const uint8_t PIN_X2 = PB7;  // X channel B
-static const uint8_t PIN_Y1 = PB8;  // Y channel A
-static const uint8_t PIN_Y2 = PB9;  // Y channel B
+const uint8_t PIN_LED = PC13;
 
-// LED
-static const uint8_t PIN_LED = PC13;
+// ------------------------- PMW3389 register map (subset) ---------------
 
-// ---------------- PMW3389 registers (verify with your datasheet) ----------------
-#define REG_Product_ID        0x00
-#define REG_Revision_ID       0x01
-#define REG_Motion            0x02
-#define REG_Delta_X_L         0x03
-#define REG_Delta_X_H         0x04
-#define REG_Delta_Y_L         0x05
-#define REG_Delta_Y_H         0x06
-#define REG_Resolution_L      0x0E
-#define REG_Resolution_H      0x0F
-#define REG_Power_Up_Reset    0x3A
-#define REG_Shutdown          0x3B
+// Common PMW33xx regs; names per datasheet family
+#define REG_PRODUCT_ID     0x00
+#define REG_REVISION_ID    0x01
+#define REG_MOTION         0x02
+#define REG_DELTA_X_L      0x03
+#define REG_DELTA_X_H      0x04
+#define REG_DELTA_Y_L      0x05
+#define REG_DELTA_Y_H      0x06
+#define REG_CONFIG1        0x0F  // CPI = value*50 (range 1..0xFF depending on model)
 
-// ---------------- Globals for quadrature state ----------------
+// ------------------------- Globals/state --------------------------------
 
-// Queues of pending steps to emit as quadrature pulses; positive = forward.
-volatile int32_t x_queue = 0;
-volatile int32_t y_queue = 0;
+volatile bool motionFlag = false;     // set in MOTION ISR
+uint8_t quadStateX = 0;               // 2-bit Gray state
+uint8_t quadStateY = 0;
+uint32_t lastSampleMs = 0;
 
-// 2-bit Gray-state per axis: 0:00, 1:01, 2:11, 3:10
-volatile uint8_t qx_state = 0;
-volatile uint8_t qy_state = 0;
+// ------------------------- HAL: disable JTAG, keep SWD ------------------
 
-// Timers (micros-based cooperative scheduling)
-uint32_t next_sample_us = 0;
-uint32_t next_step_us   = 0;
-uint32_t sample_interval_us = 0;
-uint32_t step_interval_us   = 0;
+extern "C" {
+  #include "stm32yyxx_hal.h"
+}
 
-// Motion hint from PA0
-volatile bool motion_flag = false;
+static void disableJTAG_keepSWD() {
+  // Frigör PB3/PB4/PB5 för SPI men behåll SWD för debug/programmering
+  __HAL_AFIO_REMAP_SWJ_NOJTAG();
+}
 
-// ---------------- Small helpers ----------------
-inline void ledWrite(bool on) {
+// ------------------------- LED helpers ----------------------------------
+
+inline void ledOn() {
 #if LED_ACTIVE_LOW
-  digitalWrite(PIN_LED, on ? LOW : HIGH);
+  digitalWrite(PIN_LED, LOW);
 #else
-  digitalWrite(PIN_LED, on ? HIGH : LOW);
+  digitalWrite(PIN_LED, HIGH);
 #endif
 }
 
-inline void csLow()  { digitalWrite(PIN_CS, LOW); }
-inline void csHigh() { digitalWrite(PIN_CS, HIGH); }
-
-// ---------------- SPI register access (timings per public examples) ----------------
-
-// Write 1 byte to a register (MSB=1 indicates write on PMW3389)
-void sensorWrite(uint8_t reg, uint8_t val) {
-  SPI.beginTransaction(SPISettings(PMW_SPI_HZ, MSBFIRST, PMW_SPI_MODE));
-  csLow();
-  SPI.transfer(reg | 0x80);        // set MSB=1 for write
-  SPI.transfer(val);               // write data
-  delayMicroseconds(20);           // tSCLK-NCS (write), conservative
-  csHigh();
-  SPI.endTransaction();
-  delayMicroseconds(100);          // tSWW/tSWR (datasheet ~120us), safe lower bound
+inline void ledOff() {
+#if LED_ACTIVE_LOW
+  digitalWrite(PIN_LED, HIGH);
+#else
+  digitalWrite(PIN_LED, LOW);
+#endif
 }
 
-// Read 1 byte from a register (MSB=0 indicates read)
-uint8_t sensorRead(uint8_t reg) {
-  SPI.beginTransaction(SPISettings(PMW_SPI_HZ, MSBFIRST, PMW_SPI_MODE));
-  csLow();
-  SPI.transfer(reg & 0x7F);        // MSB=0 for read
-  delayMicroseconds(35);           // tSRAD (~35us typical)
-  uint8_t v = SPI.transfer(0x00);  // dummy write to clock data out
-  delayMicroseconds(1);            // tSCLK-NCS (read)
-  csHigh();
-  SPI.endTransaction();
-  delayMicroseconds(19);           // (20us) - tSCLK-NCS
+// ------------------------- SPI helpers ----------------------------------
+
+inline void ncsLow()  { digitalWrite(PIN_NCS, LOW);  }
+inline void ncsHigh() { digitalWrite(PIN_NCS, HIGH); }
+
+// PMW3389 uses SPI mode 3
+static uint8_t spiReadReg(uint8_t reg) {
+  ncsLow();
+  SPI.transfer(reg & 0x7F);          // MSB=0 for read
+  delayMicroseconds(1);              // tSRAD (säker marginal)
+  uint8_t v = SPI.transfer(0x00);
+  ncsHigh();
+  delayMicroseconds(1);
   return v;
 }
 
-// Read signed 16-bit delta from low/high registers (two’s complement)
-int16_t readDelta16(uint8_t loAddr, uint8_t hiAddr) {
-  uint8_t lo = sensorRead(loAddr);
-  uint8_t hi = sensorRead(hiAddr);
-  return (int16_t)((hi << 8) | lo);
+static void spiWriteReg(uint8_t reg, uint8_t val) {
+  ncsLow();
+  SPI.transfer(reg | 0x80);          // MSB=1 for write
+  SPI.transfer(val);
+  ncsHigh();
+  delayMicroseconds(20);             // kort paus mellan writes
 }
 
-// ---------------- Motion hint ISR ----------------
-void onMotionRise() {
-  motion_flag = true;              // simple flag; sampling loop will handle it
-}
-
-// ---------------- Quadrature helpers ----------------
-
-// Apply Gray-code state (0..3) to given A/B pins
-inline void writeQuadState(uint8_t pinA, uint8_t pinB, uint8_t s) {
-  static const uint8_t A_lut[4] = {0,0,1,1};
-  static const uint8_t B_lut[4] = {0,1,1,0};
-  digitalWrite(pinA, A_lut[s]);
-  digitalWrite(pinB, B_lut[s]);
-}
-
-// Advance one step (+1 forward, -1 reverse) and update pins
-inline void quadStepOne(volatile uint8_t* sref, uint8_t pinA, uint8_t pinB, int dir) {
-  uint8_t s = *sref;
-  s = (dir > 0) ? ((s + 1) & 0x3) : ((s + 3) & 0x3);
-  *sref = s;
-  writeQuadState(pinA, pinB, s);
-}
-
-// Drain up to N steps per axis at high rate to generate pulses smoothly
-void drainSteps() {
-  // X axis
-  int emitted = 0;
-  while (emitted < MAX_STEPS_PER_TICK_PER_AXIS) {
-    noInterrupts();
-    int32_t q = x_queue;
-    interrupts();
-    if (q == 0) break;
-
-    if (q > 0) { quadStepOne(&qx_state, PIN_X1, PIN_X2, +1); noInterrupts(); x_queue--; interrupts(); }
-    else       { quadStepOne(&qx_state, PIN_X1, PIN_X2, -1); noInterrupts(); x_queue++; interrupts(); }
-    emitted++;
-  }
-
-  // Y axis
-  emitted = 0;
-  while (emitted < MAX_STEPS_PER_TICK_PER_AXIS) {
-    noInterrupts();
-    int32_t q = y_queue;
-    interrupts();
-    if (q == 0) break;
-
-    if (q > 0) { quadStepOne(&qy_state, PIN_Y1, PIN_Y2, +1); noInterrupts(); y_queue--; interrupts(); }
-    else       { quadStepOne(&qy_state, PIN_Y1, PIN_Y2, -1); noInterrupts(); y_queue++; interrupts(); }
-    emitted++;
-  }
-}
-
-// ---------------- Simple init sequence (as requested) ----------------
-
-// Optional hard reset via NRESET; harmless if tied high on your board
-void sensorHardwareReset() {
-  pinMode(PIN_NRESET, OUTPUT);
-  digitalWrite(PIN_NRESET, LOW);
-  delay(10);
-  digitalWrite(PIN_NRESET, HIGH);
-  delay(50);
-}
+// ------------------------- Sensor init (matches your demo) --------------
 
 /*
-  sensorInitSimple()
-  ------------------
-  Implements the *simple* init like your demo:
-   - (Optionally) perform a Power_Up_Reset write (0x3A <- 0x5A) for a clean start
-   - Read Product_ID (0x00), Motion (0x02), ΔX/ΔY (0x03..0x06) once
-   - Set Resolution_L/H from PMW_CPI (CPI = 50 * value)
-   - Write Motion (0x02) to clear/ack
+  Enkel init som i din main.c:
+   1) Läs ProductID (och revision för nyfikenhet/debug)
+   2) Läs Motion + DeltaX/DeltaY för att nollställa interna ackumulatorer
+   3) Skriv upplösning (CPI) till CONFIG1
+   4) Skriv till MOTION-registret (värdet styrt av MOTION_WRITE_VAL)
+   5) Klart – loopa och läs deltor
 */
-void sensorInitSimple() {
-  // Power-up reset sequence (keeps things predictable even without SROM)
-  sensorWrite(REG_Shutdown, 0xB6);    // polite shutdown
-  delay(300);
-  sensorWrite(REG_Power_Up_Reset, 0x5A);
+static void sensorInitSimple() {
+  // (Valfri) hårdvarureset via NRESET om kopplad
+  digitalWrite(PIN_NRESET, LOW);
+  delay(1);
+  digitalWrite(PIN_NRESET, HIGH);
   delay(50);
 
-  // Drop/raise CS quickly to reset SPI port (mirrors common examples)
-  csLow();  delayMicroseconds(40);  csHigh();  delayMicroseconds(40);
-
-  // 1) Read product and basic motion/delta once
-  uint8_t pid = sensorRead(REG_Product_ID);
-  uint8_t rev = sensorRead(REG_Revision_ID);
-  uint8_t mot = sensorRead(REG_Motion);       // reading MOTION often latches deltas
-  int16_t dx0 = readDelta16(REG_Delta_X_L, REG_Delta_X_H);
-  int16_t dy0 = readDelta16(REG_Delta_Y_L, REG_Delta_Y_H);
-
+  // 1) Läs produktinfo
+  uint8_t pid = spiReadReg(REG_PRODUCT_ID);
+  uint8_t rev = spiReadReg(REG_REVISION_ID);
 #if DEBUG_SERIAL
-  Serial1.print("PMW3389 Product_ID=0x"); Serial1.print(pid, HEX);
-  Serial1.print(" Rev=0x");               Serial1.print(rev, HEX);
-  Serial1.print(" Motion=0x");            Serial1.println(mot, HEX);
-  Serial1.print("Delta0 x=");             Serial1.print(dx0);
-  Serial1.print(" y=");                   Serial1.println(dy0);
+  Serial1.print("ProductID=0x"); Serial1.print(pid, HEX);
+  Serial1.print(" RevisionID=0x"); Serial1.println(rev, HEX);
 #endif
 
-  // 2) Set resolution: Resolution = CPI/50, written as 16-bit value L then H
-  uint16_t cpival = (uint16_t)(PMW_CPI / 50);   // per public references
-  sensorWrite(REG_Resolution_L, (uint8_t)(cpival & 0xFF));
-  sensorWrite(REG_Resolution_H, (uint8_t)((cpival >> 8) & 0xFF));
+  // 2) Läs Motion + delta-register (rensa status/accumulatorer)
+  (void)spiReadReg(REG_MOTION);
+  (void)spiReadReg(REG_DELTA_X_L);
+  (void)spiReadReg(REG_DELTA_X_H);
+  (void)spiReadReg(REG_DELTA_Y_L);
+  (void)spiReadReg(REG_DELTA_Y_H);
 
+  // 3) Skriv CPI (CONFIG1): värde = CPI / 50 (avrundat)
+  uint8_t cpi_val = (uint8_t)((DESIRED_CPI + 49) / 50);
+  spiWriteReg(REG_CONFIG1, cpi_val);
 #if DEBUG_SERIAL
-  Serial1.print("Resolution set to ~"); Serial1.print(cpival * 50);
-  Serial1.println(" CPI");
+  Serial1.print("CPI set to "); Serial1.print((int)cpi_val * 50);
+  Serial1.print(" (CONFIG1=0x"); Serial1.print(cpi_val, HEX); Serial1.println(")");
 #endif
 
-  // 3) Write Motion register once to clear/ack any pending flags
-  sensorWrite(REG_Motion, 0x00);
-
-  // Read once more to clear latched state before entering main loop
-  (void)sensorRead(REG_Motion);
-  (void)readDelta16(REG_Delta_X_L, REG_Delta_X_H);
-  (void)readDelta16(REG_Delta_Y_L, REG_Delta_Y_H);
+  // 4) Skriv MOTION-registret per din demo (ex. 0x00)
+  spiWriteReg(REG_MOTION, MOTION_WRITE_VAL);
+#if DEBUG_SERIAL
+  Serial1.print("Motion reg written: 0x");
+  Serial1.println(MOTION_WRITE_VAL, HEX);
+#endif
 }
 
-// ---------------- Sampling & queuing ----------------
+// ------------------------- Motion interrupt -----------------------------
 
-// Poll at SAMPLE_HZ; uses MOTION as a hint but still polls
-void sampleAndQueue() {
-  uint8_t motion = sensorRead(REG_Motion);                 // read/ack
-  if (((motion & 0x80) == 0) && !motion_flag) return;      // no motion, skip SPI work
+void IRAM_ATTR onMotion() {
+  // Flagga att sensorn signalerat rörelse
+  motionFlag = true;
+}
 
-  int16_t dx = readDelta16(REG_Delta_X_L, REG_Delta_X_H);  // signed two’s complement
-  int16_t dy = readDelta16(REG_Delta_Y_L, REG_Delta_Y_H);
+// ------------------------- Quadrature generation ------------------------
 
-  motion_flag = false;
+/*
+  Gray-sekvens (A,B): 00 -> 01 -> 11 -> 10 -> 00
+  Positivt steg = framåt i sekvensen; negativt steg = bakåt.
+*/
+static const uint8_t graySeq[4] = { 0b00, 0b01, 0b11, 0b10 };
 
-  if (dx != 0 || dy != 0) {
-    ledWrite(true);      // show activity
+inline void writeXPins(uint8_t bits) {
+  digitalWrite(PIN_X1, (bits & 0x01) ? HIGH : LOW); // A
+  digitalWrite(PIN_X2, (bits & 0x02) ? HIGH : LOW); // B
+}
 
-    noInterrupts();
-    x_queue += dx;       // queue steps to be emitted as quadrature
-    y_queue += dy;
-    interrupts();
+inline void writeYPins(uint8_t bits) {
+  digitalWrite(PIN_Y1, (bits & 0x01) ? HIGH : LOW); // A
+  digitalWrite(PIN_Y2, (bits & 0x02) ? HIGH : LOW); // B
+}
 
-#if DEBUG_SERIAL
-    static uint32_t lastLog = 0;
-    uint32_t now = millis();
-    if (now - lastLog >= 50) {     // throttle debug prints (~20 Hz)
-      Serial1.print("dx="); Serial1.print(dx);
-      Serial1.print(" dy="); Serial1.print(dy);
-      Serial1.print(" | qx="); Serial1.print(x_queue);
-      Serial1.print(" qy="); Serial1.println(y_queue);
-      lastLog = now;
-    }
-#endif
+// Stega X-axeln 'steps' gånger (tecken anger riktning)
+static void stepQuadX(int steps) {
+  int n = steps;
+  int dir = (n >= 0) ? +1 : -1;
+  n = abs(n);
+  while (n--) {
+    quadStateX = (quadStateX + (dir > 0 ? 1 : 3)) & 0x03;
+    writeXPins(graySeq[quadStateX]);
+    delayMicroseconds(QUAD_PULSE_US);
   }
 }
 
-// ---------------- Arduino setup/loop ----------------
+// Stega Y-axeln
+static void stepQuadY(int steps) {
+  int n = steps;
+  int dir = (n >= 0) ? +1 : -1;
+  n = abs(n);
+  while (n--) {
+    quadStateY = (quadStateY + (dir > 0 ? 1 : 3)) & 0x03;
+    writeYPins(graySeq[quadStateY]);
+    delayMicroseconds(QUAD_PULSE_US);
+  }
+}
+
+// ------------------------- Read deltas at 100 Hz ------------------------
+
+static void readDeltas(int16_t &dx, int16_t &dy) {
+  // Läs MOTION – om inte satt, läs ändå deltor enligt din demo-loop
+  uint8_t motion = spiReadReg(REG_MOTION);
+
+  // Läs alltid delta-register (samma som i din loop)
+  uint8_t xl = spiReadReg(REG_DELTA_X_L);
+  uint8_t xh = spiReadReg(REG_DELTA_X_H);
+  uint8_t yl = spiReadReg(REG_DELTA_Y_L);
+  uint8_t yh = spiReadReg(REG_DELTA_Y_H);
+
+  dx = (int16_t)(((int16_t)xh << 8) | xl);
+  dy = (int16_t)(((int16_t)yh << 8) | yl);
+
+#if DEBUG_SERIAL
+  // Enkel spårning av MOTION-bit för diagnos
+  Serial1.print("MOTION=0x"); Serial1.print(motion, HEX);
+  Serial1.print(" dx="); Serial1.print(dx);
+  Serial1.print(" dy="); Serial1.println(dy);
+#endif
+}
+
+// ------------------------- Setup / Loop ---------------------------------
+
 void setup() {
-  // Free PA15 by disabling JTAG while keeping SWD enabled
-  afio_cfg_debug_ports(AFIO_DEBUG_SW_ONLY);
+  // Frigör SPI-pinnar (PB3..PB5) men håll SWD aktivt
+  disableJTAG_keepSWD();
 
-  // GPIO setup
-  pinMode(PIN_CS, OUTPUT);         digitalWrite(PIN_CS, HIGH);
-  pinMode(PIN_MOTION, INPUT_PULLDOWN);
-  attachInterrupt(digitalPinToInterrupt(PIN_MOTION), onMotionRise, RISING);
+  // LED
+  pinMode(PIN_LED, OUTPUT);
+  ledOff();
 
-  pinMode(PIN_NRESET, OUTPUT);     digitalWrite(PIN_NRESET, HIGH);
-  pinMode(PIN_X1, OUTPUT);         pinMode(PIN_X2, OUTPUT);
-  pinMode(PIN_Y1, OUTPUT);         pinMode(PIN_Y2, OUTPUT);
-  pinMode(PIN_LED, OUTPUT);        ledWrite(false);
+  // Quadrature-utgångar
+  pinMode(PIN_X1, OUTPUT);
+  pinMode(PIN_X2, OUTPUT);
+  pinMode(PIN_Y1, OUTPUT);
+  pinMode(PIN_Y2, OUTPUT);
+  writeXPins(graySeq[quadStateX]);
+  writeYPins(graySeq[quadStateY]);
 
-  // Initialize quadrature outputs to state 0 (A=0,B=0)
-  writeQuadState(PIN_X1, PIN_X2, qx_state);
-  writeQuadState(PIN_Y1, PIN_Y2, qy_state);
+  // Sensorstyrning
+  pinMode(PIN_NCS, OUTPUT);   ncsHigh();
+  pinMode(PIN_NRESET, OUTPUT); digitalWrite(PIN_NRESET, HIGH);
+
+  // MOTION-ingång
+  pinMode(PIN_MOTION, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIN_MOTION), onMotion, RISING);
 
 #if DEBUG_SERIAL
   Serial1.begin(115200);
   delay(10);
-  Serial1.println("\n[PMW3389->Quadrature] Boot (simple init)");
+  Serial1.println("\nPMW3389 → Quadrature (demo-style init, 100 Hz)");
 #endif
 
-  // SPI1 begin
-  SPI.begin(); // PB3/PB4/PB5
+  // SPI1 (MODE3). 2 MHz är ett säkert startvärde på PMW3389.
+  SPI.begin();
+  SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
 
-  // Optional hardware reset and simple init sequence
-  sensorHardwareReset();
+  // Init enligt din demo-kod
   sensorInitSimple();
 
-  // Scheduler setup
-  sample_interval_us = 1000000UL / SAMPLE_HZ;
-  step_interval_us   = 1000000UL / STEP_HZ;
-  uint32_t now = micros();
-  next_sample_us = now + sample_interval_us;
-  next_step_us   = now + step_interval_us;
-
-#if DEBUG_SERIAL
-  Serial1.print("SAMPLE_HZ="); Serial1.print(SAMPLE_HZ);
-  Serial1.print(" STEP_HZ=");  Serial1.println(STEP_HZ);
-#endif
+  lastSampleMs = millis();
 }
 
 void loop() {
-  uint32_t now = micros();
+  uint32_t now = millis();
 
-  // High-rate quadrature service
-  if ((int32_t)(now - next_step_us) >= 0) {
-    drainSteps();
-    next_step_us += step_interval_us;
-    if (x_queue == 0 && y_queue == 0) ledWrite(false);
+  if ((uint32_t)(now - lastSampleMs) >= SAMPLE_PERIOD_MS) {
+    lastSampleMs += SAMPLE_PERIOD_MS;
+
+    int16_t dx = 0, dy = 0;
+    readDeltas(dx, dy);
+
+    if (dx != 0 || dy != 0) {
+      // Visa aktivitet under pulsgenerering
+      ledOn();
+
+      // Interleava X/Y för jämnare belastning
+      int16_t sx = abs(dx), sy = abs(dy);
+      int sgnX = (dx >= 0) ? +1 : -1;
+      int sgnY = (dy >= 0) ? +1 : -1;
+      while (sx > 0 || sy > 0) {
+        if (sx > 0) { stepQuadX(sgnX); sx--; }
+        if (sy > 0) { stepQuadY(sgnY); sy--; }
+      }
+
+      ledOff();
+    } else {
+      // Litet blink om MOTION fladdrade men inget netto-delta vid samplet
+      if (motionFlag) {
+        ledOn();
+        delayMicroseconds(200);
+        ledOff();
+      }
+    }
+
+    motionFlag = false;
   }
 
-  // 100 Hz sensor sampling
-  if ((int32_t)(now - next_sample_us) >= 0) {
-    sampleAndQueue();
-    next_sample_us += sample_interval_us;
-  }
+  // Kort vila för att inte spinna 100%
+  delay(1);
 }
