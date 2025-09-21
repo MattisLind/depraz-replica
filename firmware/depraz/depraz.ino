@@ -80,9 +80,6 @@ uint32_t lastSampleMs = 0;
 
 // ------------------------- HAL: disable JTAG, keep SWD ------------------
 
-extern "C" {
-  #include "stm32yyxx_hal.h"
-}
 
 static void disableJTAG_keepSWD() {
   // Frigör PB3/PB4/PB5 för SPI men behåll SWD för debug/programmering
@@ -181,7 +178,7 @@ static void sensorInitSimple() {
 
 // ------------------------- Motion interrupt -----------------------------
 
-void IRAM_ATTR onMotion() {
+void  onMotion() {
   // Flagga att sensorn signalerat rörelse
   motionFlag = true;
 }
@@ -284,6 +281,10 @@ void setup() {
 #endif
 
   // SPI1 (MODE3). 2 MHz är ett säkert startvärde på PMW3389.
+  SPI.setMISO(PB4);
+  SPI.setMOSI(PB5);
+  SPI.setSCLK(PB3);
+  SPI.setSSEL(PA15);
   SPI.begin();
   SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
 
