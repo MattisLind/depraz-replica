@@ -44,7 +44,7 @@
 #define SAMPLE_PERIOD_MS 10
 
 // LED is often active-low on PC13 (e.g., Blue Pill)
-#define LED_ACTIVE_LOW 1
+#define LED_ACTIVE_LOW 0
 
 // ------------------------- Pin assignments -----------------------------
 
@@ -194,11 +194,24 @@ static const uint8_t graySeq[4] = { 0b00, 0b01, 0b11, 0b10 };
 inline void writeXPins(uint8_t bits) {
   digitalWrite(PIN_X1, (bits & 0x01) ? HIGH : LOW); // A
   digitalWrite(PIN_X2, (bits & 0x02) ? HIGH : LOW); // B
+#if DEBUG_SERIAL
+  Serial1.print("X1:");
+  Serial1.println(bits & 0x01, DEC);
+  Serial1.print("X2:");
+  Serial1.println((bits>>1) & 0x01, DEC);
+#endif
+
 }
 
 inline void writeYPins(uint8_t bits) {
   digitalWrite(PIN_Y1, (bits & 0x01) ? HIGH : LOW); // A
   digitalWrite(PIN_Y2, (bits & 0x02) ? HIGH : LOW); // B
+#if DEBUG_SERIAL
+  Serial1.print("Y1:");
+  Serial1.println(bits & 0x01, DEC);
+  Serial1.print("Y2:");
+  Serial1.println(((bits>>1) & 0x01), DEC);
+#endif  
 }
 
 // Stega X-axeln 'steps' gånger (tecken anger riktning)
@@ -242,9 +255,9 @@ static void readDeltas(int16_t &dx, int16_t &dy) {
 
 #if DEBUG_SERIAL
   // Enkel spårning av MOTION-bit för diagnos
-  Serial1.print("MOTION=0x"); Serial1.print(motion, HEX);
-  Serial1.print(" dx="); Serial1.print(dx);
-  Serial1.print(" dy="); Serial1.println(dy);
+  //Serial1.print("MOTION=0x"); Serial1.print(motion, HEX);
+  //Serial1.print(" dx="); Serial1.print(dx);
+  //Serial1.print(" dy="); Serial1.println(dy);
 #endif
 }
 
@@ -259,10 +272,10 @@ void setup() {
   ledOff();
 
   // Quadrature-utgångar
-  pinMode(PIN_X1, OUTPUT);
-  pinMode(PIN_X2, OUTPUT);
-  pinMode(PIN_Y1, OUTPUT);
-  pinMode(PIN_Y2, OUTPUT);
+  pinMode(PIN_X1, OUTPUT_OPEN_DRAIN);
+  pinMode(PIN_X2, OUTPUT_OPEN_DRAIN);
+  pinMode(PIN_Y1, OUTPUT_OPEN_DRAIN);
+  pinMode(PIN_Y2, OUTPUT_OPEN_DRAIN);
   writeXPins(graySeq[quadStateX]);
   writeYPins(graySeq[quadStateY]);
 
@@ -271,8 +284,8 @@ void setup() {
   pinMode(PIN_NRESET, OUTPUT); digitalWrite(PIN_NRESET, HIGH);
 
   // MOTION-ingång
-  pinMode(PIN_MOTION, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PIN_MOTION), onMotion, RISING);
+  //pinMode(PIN_MOTION, INPUT);
+  //attachInterrupt(digitalPinToInterrupt(PIN_MOTION), onMotion, RISING);
 
 #if DEBUG_SERIAL
   Serial1.begin(115200);
@@ -308,13 +321,13 @@ void loop() {
       ledOn();
 
       // Interleava X/Y för jämnare belastning
-      int16_t sx = abs(dx), sy = abs(dy);
-      int sgnX = (dx >= 0) ? +1 : -1;
-      int sgnY = (dy >= 0) ? +1 : -1;
-      while (sx > 0 || sy > 0) {
-        if (sx > 0) { stepQuadX(sgnX); sx--; }
-        if (sy > 0) { stepQuadY(sgnY); sy--; }
-      }
+      //int16_t sx = abs(dx), sy = abs(dy);
+      //int sgnX = (dx >= 0) ? +1 : -1;
+      //int sgnY = (dy >= 0) ? +1 : -1;
+      //while (sx > 0 || sy > 0) {
+        stepQuadX(dx); 
+        stepQuadY(dy);
+      //}
 
       ledOff();
     } else {
