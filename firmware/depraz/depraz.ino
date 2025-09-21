@@ -43,9 +43,6 @@
 // Sample rate 100 Hz = 10 ms
 #define SAMPLE_PERIOD_MS 10
 
-// LED is often active-low on PC13 (e.g., Blue Pill)
-#define LED_ACTIVE_LOW 0
-
 // ------------------------- Pin assignments -----------------------------
 
 const uint8_t PIN_NCS    = PA15; // PMW3389 NCS
@@ -89,19 +86,11 @@ static void disableJTAG_keepSWD() {
 // ------------------------- LED helpers ----------------------------------
 
 inline void ledOn() {
-#if LED_ACTIVE_LOW
-  digitalWrite(PIN_LED, LOW);
-#else
   digitalWrite(PIN_LED, HIGH);
-#endif
 }
 
 inline void ledOff() {
-#if LED_ACTIVE_LOW
-  digitalWrite(PIN_LED, HIGH);
-#else
   digitalWrite(PIN_LED, LOW);
-#endif
 }
 
 // ------------------------- SPI helpers ----------------------------------
@@ -111,41 +100,28 @@ inline void ncsHigh() { digitalWrite(PIN_NCS, HIGH); }
 
 // PMW3389 uses SPI mode 3
 static uint8_t spiReadReg(uint8_t reg) {
-  ncsLow();
   SPI.transfer(reg & 0x7F);          // MSB=0 for read
   delayMicroseconds(1);              // tSRAD (säker marginal)
   uint8_t v = SPI.transfer(0x00);
-  ncsHigh();
-  delayMicroseconds(1);
+  delayMicroseconds(10);
   return v;
 }
 
 static void spiWriteReg(uint8_t reg, uint8_t val) {
-  ncsLow();
   SPI.transfer(reg | 0x80);          // MSB=1 for write
   SPI.transfer(val);
-  ncsHigh();
-  delayMicroseconds(20);             // kort paus mellan writes
+  delayMicroseconds(10);             
 }
 
 // ------------------------- Sensor init (matches your demo) --------------
 
-/*
-  Enkel init som i din main.c:
-   1) Läs ProductID (och revision för nyfikenhet/debug)
-   2) Läs Motion + DeltaX/DeltaY för att nollställa interna ackumulatorer
-   3) Skriv upplösning (CPI) till CONFIG1
-   4) Skriv till MOTION-registret (värdet styrt av MOTION_WRITE_VAL)
-   5) Klart – loopa och läs deltor
-*/
 static void sensorInitSimple() {
   // (Valfri) hårdvarureset via NRESET om kopplad
   digitalWrite(PIN_NRESET, LOW);
-  delay(1);
+  delay(100);
   digitalWrite(PIN_NRESET, HIGH);
-  delay(50);
+  delay(1000);
 
-  // 1) Läs produktinfo
   uint8_t pid = spiReadReg(REG_PRODUCT_ID);
   uint8_t rev = spiReadReg(REG_REVISION_ID);
 #if DEBUG_SERIAL
@@ -153,14 +129,12 @@ static void sensorInitSimple() {
   Serial1.print(" RevisionID=0x"); Serial1.println(rev, HEX);
 #endif
 
-  // 2) Läs Motion + delta-register (rensa status/accumulatorer)
   (void)spiReadReg(REG_MOTION);
   (void)spiReadReg(REG_DELTA_X_L);
   (void)spiReadReg(REG_DELTA_X_H);
   (void)spiReadReg(REG_DELTA_Y_L);
   (void)spiReadReg(REG_DELTA_Y_H);
 
-  // 3) Skriv CPI (CONFIG1): värde = CPI / 50 (avrundat)
   uint8_t cpi_val = (uint8_t)((DESIRED_CPI + 49) / 50);
   spiWriteReg(REG_CONFIG1, cpi_val);
 #if DEBUG_SERIAL
@@ -168,7 +142,6 @@ static void sensorInitSimple() {
   Serial1.print(" (CONFIG1=0x"); Serial1.print(cpi_val, HEX); Serial1.println(")");
 #endif
 
-  // 4) Skriv MOTION-registret per din demo (ex. 0x00)
   spiWriteReg(REG_MOTION, MOTION_WRITE_VAL);
 #if DEBUG_SERIAL
   Serial1.print("Motion reg written: 0x");
@@ -176,19 +149,9 @@ static void sensorInitSimple() {
 #endif
 }
 
-// ------------------------- Motion interrupt -----------------------------
-
-void  onMotion() {
-  // Flagga att sensorn signalerat rörelse
-  motionFlag = true;
-}
 
 // ------------------------- Quadrature generation ------------------------
 
-/*
-  Gray-sekvens (A,B): 00 -> 01 -> 11 -> 10 -> 00
-  Positivt steg = framåt i sekvensen; negativt steg = bakåt.
-*/
 static const uint8_t graySeq[4] = { 0b00, 0b01, 0b11, 0b10 };
 
 inline void writeXPins(uint8_t bits) {
@@ -214,7 +177,6 @@ inline void writeYPins(uint8_t bits) {
 #endif  
 }
 
-// Stega X-axeln 'steps' gånger (tecken anger riktning)
 static void stepQuadX(int steps) {
   int n = steps;
   int dir = (n >= 0) ? +1 : -1;
@@ -226,7 +188,6 @@ static void stepQuadX(int steps) {
   }
 }
 
-// Stega Y-axeln
 static void stepQuadY(int steps) {
   int n = steps;
   int dir = (n >= 0) ? +1 : -1;
@@ -241,10 +202,7 @@ static void stepQuadY(int steps) {
 // ------------------------- Read deltas at 100 Hz ------------------------
 
 static void readDeltas(int16_t &dx, int16_t &dy) {
-  // Läs MOTION – om inte satt, läs ändå deltor enligt din demo-loop
   uint8_t motion = spiReadReg(REG_MOTION);
-
-  // Läs alltid delta-register (samma som i din loop)
   uint8_t xl = spiReadReg(REG_DELTA_X_L);
   uint8_t xh = spiReadReg(REG_DELTA_X_H);
   uint8_t yl = spiReadReg(REG_DELTA_Y_L);
@@ -264,14 +222,13 @@ static void readDeltas(int16_t &dx, int16_t &dy) {
 // ------------------------- Setup / Loop ---------------------------------
 
 void setup() {
-  // Frigör SPI-pinnar (PB3..PB5) men håll SWD aktivt
   disableJTAG_keepSWD();
 
   // LED
   pinMode(PIN_LED, OUTPUT);
   ledOff();
 
-  // Quadrature-utgångar
+  // Quadrature outputs are open drain
   pinMode(PIN_X1, OUTPUT_OPEN_DRAIN);
   pinMode(PIN_X2, OUTPUT_OPEN_DRAIN);
   pinMode(PIN_Y1, OUTPUT_OPEN_DRAIN);
@@ -279,29 +236,22 @@ void setup() {
   writeXPins(graySeq[quadStateX]);
   writeYPins(graySeq[quadStateY]);
 
-  // Sensorstyrning
   pinMode(PIN_NCS, OUTPUT);   ncsHigh();
   pinMode(PIN_NRESET, OUTPUT); digitalWrite(PIN_NRESET, HIGH);
 
-  // MOTION-ingång
-  //pinMode(PIN_MOTION, INPUT);
-  //attachInterrupt(digitalPinToInterrupt(PIN_MOTION), onMotion, RISING);
 
 #if DEBUG_SERIAL
   Serial1.begin(115200);
   delay(10);
-  Serial1.println("\nPMW3389 → Quadrature (demo-style init, 100 Hz)");
+  Serial1.println("\nPMW3389 → Quadrature");
 #endif
 
-  // SPI1 (MODE3). 2 MHz är ett säkert startvärde på PMW3389.
   SPI.setMISO(PB4);
   SPI.setMOSI(PB5);
   SPI.setSCLK(PB3);
   SPI.setSSEL(PA15);
   SPI.begin();
   SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
-
-  // Init enligt din demo-kod
   sensorInitSimple();
 
   lastSampleMs = millis();
@@ -317,31 +267,13 @@ void loop() {
     readDeltas(dx, dy);
 
     if (dx != 0 || dy != 0) {
-      // Visa aktivitet under pulsgenerering
       ledOn();
-
-      // Interleava X/Y för jämnare belastning
-      //int16_t sx = abs(dx), sy = abs(dy);
-      //int sgnX = (dx >= 0) ? +1 : -1;
-      //int sgnY = (dy >= 0) ? +1 : -1;
-      //while (sx > 0 || sy > 0) {
-        stepQuadX(dx); 
-        stepQuadY(dy);
-      //}
-
+      stepQuadX(dx); 
+      stepQuadY(dy);
       ledOff();
-    } else {
-      // Litet blink om MOTION fladdrade men inget netto-delta vid samplet
-      if (motionFlag) {
-        ledOn();
-        delayMicroseconds(200);
-        ledOff();
-      }
-    }
+    } 
 
-    motionFlag = false;
   }
 
-  // Kort vila för att inte spinna 100%
   delay(1);
 }
